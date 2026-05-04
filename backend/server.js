@@ -25,6 +25,7 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || DEFAULT_CORS_ORIGINS.join(",")
   .filter(Boolean);
 const DEFAULT_COUNTRY_CODE = process.env.DEFAULT_COUNTRY_CODE || "254";
 const WHATSAPP_GRAPH_VERSION = process.env.WHATSAPP_GRAPH_VERSION || "v21.0";
+const PASSWORD_SALT_ROUNDS = Number(process.env.PASSWORD_SALT_ROUNDS || 12);
 const DB_SSL_REJECT_UNAUTHORIZED =
   String(process.env.DB_SSL_REJECT_UNAUTHORIZED || "false").toLowerCase() === "true";
 
@@ -164,6 +165,24 @@ function queryAsync(sql, params = []) {
   });
 }
 
+function hashPassword(password) {
+  return bcrypt.hashSync(String(password), PASSWORD_SALT_ROUNDS);
+}
+
+function isPasswordHash(password) {
+  return /^\$2[aby]\$\d{2}\$/.test(String(password || ""));
+}
+
+function passwordMatches(inputPassword, storedPassword) {
+  if (!storedPassword) return false;
+
+  if (isPasswordHash(storedPassword)) {
+    return bcrypt.compareSync(String(inputPassword), storedPassword);
+  }
+
+  return String(inputPassword).trim() === String(storedPassword).trim();
+}
+
 async function ensureSchema() {
   const statements = [
     `CREATE TABLE IF NOT EXISTS users (
@@ -254,6 +273,7 @@ async function seedAdminUser() {
 
   const adminName = String(process.env.ADMIN_NAME || "MedSense Admin").trim();
   const adminPhone = String(process.env.ADMIN_PHONE || "").trim() || null;
+  const adminPasswordHash = hashPassword(adminPassword);
 
   await queryAsync(
     `INSERT INTO users (name, email, password, role, phone)
@@ -263,7 +283,7 @@ async function seedAdminUser() {
       password = VALUES(password),
       role = 'admin',
       phone = VALUES(phone)`,
-    [adminName, adminEmail, adminPassword, adminPhone]
+    [adminName, adminEmail, adminPasswordHash, adminPhone]
   );
 
   console.log(`Admin user ready: ${adminEmail}`);
@@ -574,16 +594,15 @@ app.get("/me", verifyToken, (req, res) => {
 app.post("/register", (req, res) => {
   const { name, email, password, age, gender, phone } = req.body;
 
-  console.log("REGISTER ROUTE HIT");
-  console.log("BODY:", req.body);
-
   if (!name || !email || !password || !age || !phone) {
     return res.status(400).json({ message: "All fields required" });
   }
 
+  const passwordHash = hashPassword(password);
+
   db.query(
     "INSERT INTO users (name, email, password, role, age, gender, phone) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [name, email, password, "patient", age, gender || null, phone],
+    [name, email, passwordHash, "patient", age, gender || null, phone],
     (err) => {
       if (err) {
         console.log("REGISTER ERROR:", err);
@@ -610,8 +629,15 @@ app.post("/login", (req, res) => {
 
       const user = results[0];
 
-      if (String(password).trim() !== String(user.password).trim()) {
+      if (!passwordMatches(password, user.password)) {
         return res.status(401).json({ message: "Invalid login" });
+      }
+
+      if (!isPasswordHash(user.password)) {
+        db.query("UPDATE users SET password = ? WHERE id = ?", [
+          hashPassword(password),
+          user.id,
+        ]);
       }
 
       const token = jwt.sign(
