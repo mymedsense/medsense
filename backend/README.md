@@ -28,9 +28,18 @@ JWT_SECRET=use_a_long_random_secret
 CLIENT_URL=https://www.mymedsense.co
 CORS_ORIGINS=https://mymedsense.co,https://www.mymedsense.co
 DB_HOST=your_mysql_host
+DB_PORT=3306
 DB_USER=your_mysql_user
 DB_PASSWORD=your_mysql_password
 DB_NAME=medsense
+DB_SSL=true
+```
+
+You can also use one hosted MySQL URL instead of the individual DB fields:
+
+```text
+DATABASE_URL=mysql://user:password@host:3306/medsense
+DB_SSL=true
 ```
 
 Recommended public URLs:
@@ -54,3 +63,14 @@ Recommended public URLs:
    ```
 
 6. In Namecheap DNS, add the CNAME record Render gives you for `api`.
+
+## Database Checks
+
+Use these after deployment:
+
+```text
+https://api.mymedsense.co/health
+https://api.mymedsense.co/health/db
+```
+
+`/health/db` runs a simple MySQL query and returns `database: "connected"` when the backend can read from MySQL.

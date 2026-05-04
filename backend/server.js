@@ -25,6 +25,8 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || DEFAULT_CORS_ORIGINS.join(",")
   .filter(Boolean);
 const DEFAULT_COUNTRY_CODE = process.env.DEFAULT_COUNTRY_CODE || "254";
 const WHATSAPP_GRAPH_VERSION = process.env.WHATSAPP_GRAPH_VERSION || "v21.0";
+const DB_SSL_REJECT_UNAUTHORIZED =
+  String(process.env.DB_SSL_REJECT_UNAUTHORIZED || "false").toLowerCase() === "true";
 
 app.use(
   cors({
@@ -39,19 +41,81 @@ app.use(
 );
 app.use(express.json());
 
-const db = mysql.createConnection({
-  host: process.env.DB_HOST || "localhost",
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "medsense123",
-  database: process.env.DB_NAME || "medsense",
-});
+function shouldUseDbSsl(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["1", "true", "required", "require", "yes"].includes(normalized);
+}
+
+function getDbSslConfig(searchParams) {
+  const sslValue =
+    process.env.DB_SSL ||
+    searchParams?.get("ssl") ||
+    searchParams?.get("sslmode");
+
+  if (!shouldUseDbSsl(sslValue)) return undefined;
+
+  return {
+    rejectUnauthorized: DB_SSL_REJECT_UNAUTHORIZED,
+  };
+}
+
+function buildDbConfig() {
+  if (process.env.DATABASE_URL) {
+    const databaseUrl = new URL(process.env.DATABASE_URL);
+
+    return {
+      host: databaseUrl.hostname,
+      port: Number(databaseUrl.port || 3306),
+      user: decodeURIComponent(databaseUrl.username),
+      password: decodeURIComponent(databaseUrl.password),
+      database: decodeURIComponent(databaseUrl.pathname.replace(/^\/+/, "")),
+      ssl: getDbSslConfig(databaseUrl.searchParams),
+      connectTimeout: 10000,
+    };
+  }
+
+  return {
+    host: process.env.DB_HOST || "localhost",
+    port: Number(process.env.DB_PORT || 3306),
+    user: process.env.DB_USER || "root",
+    password: process.env.DB_PASSWORD || "medsense123",
+    database: process.env.DB_NAME || "medsense",
+    ssl: getDbSslConfig(),
+    connectTimeout: 10000,
+  };
+}
+
+let dbStatus = {
+  connected: false,
+  lastError: null,
+};
+
+const db = mysql.createConnection(buildDbConfig());
 
 db.connect((err) => {
-  if (err) console.log("MySQL Error:", err);
-  else {
-    console.log("MySQL Connected");
-    ensureSchema();
+  if (err) {
+    dbStatus = {
+      connected: false,
+      lastError: err.code || err.message,
+    };
+    console.log("MySQL Error:", dbStatus.lastError);
+    return;
   }
+
+  dbStatus = {
+    connected: true,
+    lastError: null,
+  };
+  console.log("MySQL Connected");
+  ensureSchema();
+});
+
+db.on("error", (err) => {
+  dbStatus = {
+    connected: false,
+    lastError: err.code || err.message,
+  };
+  console.log("MySQL connection error:", dbStatus.lastError);
 });
 
 function verifyToken(req, res, next) {
@@ -366,7 +430,39 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", service: "medsense-backend" });
+  res.json({
+    status: "ok",
+    service: "medsense-backend",
+    database: dbStatus.connected ? "connected" : "disconnected",
+  });
+});
+
+app.get("/health/db", (req, res) => {
+  db.query("SELECT 1 AS ok", (err) => {
+    if (err) {
+      dbStatus = {
+        connected: false,
+        lastError: err.code || err.message,
+      };
+
+      return res.status(500).json({
+        status: "error",
+        service: "medsense-backend",
+        database: "disconnected",
+      });
+    }
+
+    dbStatus = {
+      connected: true,
+      lastError: null,
+    };
+
+    return res.json({
+      status: "ok",
+      service: "medsense-backend",
+      database: "connected",
+    });
+  });
 });
 
 app.get("/me", verifyToken, (req, res) => {

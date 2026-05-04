@@ -15,13 +15,21 @@ services:
         value: https://mymedsense.co,https://www.mymedsense.co
       - key: DEFAULT_COUNTRY_CODE
         value: "254"
+      - key: DATABASE_URL
+        sync: false
       - key: DB_HOST
+        sync: false
+      - key: DB_PORT
         sync: false
       - key: DB_USER
         sync: false
       - key: DB_PASSWORD
         sync: false
       - key: DB_NAME
+        sync: false
+      - key: DB_SSL
+        sync: false
+      - key: DB_SSL_REJECT_UNAUTHORIZED
         sync: false
       - key: JWT_SECRET
         sync: false
