@@ -164,8 +164,61 @@ function queryAsync(sql, params = []) {
   });
 }
 
-function ensureSchema() {
-  db.query(
+async function ensureSchema() {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) DEFAULT NULL,
+      email VARCHAR(100) DEFAULT NULL,
+      password VARCHAR(255) DEFAULT NULL,
+      role VARCHAR(50) DEFAULT 'patient',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      age INT DEFAULT NULL,
+      gender VARCHAR(40) DEFAULT NULL,
+      phone VARCHAR(40) DEFAULT NULL,
+      condition_summary VARCHAR(255) DEFAULT NULL,
+      UNIQUE KEY email (email)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE IF NOT EXISTS medicines (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT DEFAULT NULL,
+      name VARCHAR(100) DEFAULT NULL,
+      condition_name VARCHAR(160) DEFAULT NULL,
+      dosage VARCHAR(100) DEFAULT NULL,
+      time VARCHAR(255) DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      frequency VARCHAR(80) DEFAULT NULL,
+      route VARCHAR(80) DEFAULT NULL,
+      instructions VARCHAR(255) DEFAULT NULL,
+      status VARCHAR(40) NOT NULL DEFAULT 'pending',
+      INDEX (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE IF NOT EXISTS reviews (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      medicine_id INT DEFAULT NULL,
+      patient_id INT DEFAULT NULL,
+      admin_id INT DEFAULT NULL,
+      problem TEXT,
+      intervention TEXT,
+      treatment_stage VARCHAR(50) DEFAULT NULL,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      problem_category VARCHAR(160) DEFAULT NULL,
+      problem_cause VARCHAR(255) DEFAULT NULL,
+      intervention_done VARCHAR(160) DEFAULT NULL,
+      details TEXT,
+      INDEX (medicine_id),
+      INDEX (patient_id),
+      INDEX (admin_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE IF NOT EXISTS activities (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT DEFAULT NULL,
+      action VARCHAR(100) DEFAULT NULL,
+      details TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
     `CREATE TABLE IF NOT EXISTS checkins (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
@@ -175,12 +228,45 @@ function ensureSchema() {
       answers_json TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       INDEX (user_id)
-    )`,
-    (err) => {
-      if (err) console.log("Check-ins table setup error:", err);
-      else console.log("Check-ins table ready");
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  ];
+
+  try {
+    for (const statement of statements) {
+      await queryAsync(statement);
     }
+
+    await seedAdminUser();
+    console.log("Database schema ready");
+  } catch (err) {
+    console.log("Database schema setup error:", err.code || err.message);
+  }
+}
+
+async function seedAdminUser() {
+  const adminEmail = String(process.env.ADMIN_EMAIL || "").trim();
+  const adminPassword = String(process.env.ADMIN_PASSWORD || "").trim();
+
+  if (!adminEmail || !adminPassword) {
+    console.log("Admin seed skipped: ADMIN_EMAIL and ADMIN_PASSWORD are not configured");
+    return;
+  }
+
+  const adminName = String(process.env.ADMIN_NAME || "MedSense Admin").trim();
+  const adminPhone = String(process.env.ADMIN_PHONE || "").trim() || null;
+
+  await queryAsync(
+    `INSERT INTO users (name, email, password, role, phone)
+     VALUES (?, ?, ?, 'admin', ?)
+     ON DUPLICATE KEY UPDATE
+      name = VALUES(name),
+      password = VALUES(password),
+      role = 'admin',
+      phone = VALUES(phone)`,
+    [adminName, adminEmail, adminPassword, adminPhone]
   );
+
+  console.log(`Admin user ready: ${adminEmail}`);
 }
 
 function cleanDashboardUrl() {

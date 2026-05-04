@@ -33,6 +33,9 @@ DB_USER=your_mysql_user
 DB_PASSWORD=your_mysql_password
 DB_NAME=medsense
 DB_SSL=true
+ADMIN_EMAIL=admin@mymedsense.co
+ADMIN_PASSWORD=use_a_private_admin_password
+ADMIN_NAME=MedSense Admin
 ```
 
 You can also use one hosted MySQL URL instead of the individual DB fields:
@@ -74,3 +77,5 @@ https://api.mymedsense.co/health/db
 ```
 
 `/health/db` runs a simple MySQL query and returns `database: "connected"` when the backend can read from MySQL.
+
+On a fresh database, the backend creates the required tables on startup. If `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set, it also creates or updates that admin account.
