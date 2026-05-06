@@ -1,11 +1,11 @@
 # MedSense Backend
 
-Express + MySQL API for MedSense.
+Express + MongoDB API for MedSense.
 
 ## Local Run
 
 1. Copy `.env.example` to `.env`.
-2. Confirm MySQL is running and the database credentials are correct.
+2. Set `MONGODB_URI` to your MongoDB Atlas connection string.
 3. Start the API:
 
    ```powershell
@@ -27,22 +27,11 @@ PORT=5000
 JWT_SECRET=use_a_long_random_secret
 CLIENT_URL=https://www.mymedsense.co
 CORS_ORIGINS=https://mymedsense.co,https://www.mymedsense.co
-DB_HOST=your_mysql_host
-DB_PORT=3306
-DB_USER=your_mysql_user
-DB_PASSWORD=your_mysql_password
-DB_NAME=medsense
-DB_SSL=true
+MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/medsense
+MONGODB_DB_NAME=medsense
 ADMIN_EMAIL=admin@mymedsense.co
 ADMIN_PASSWORD=use_a_private_admin_password
 ADMIN_NAME=MedSense Admin
-```
-
-You can also use one hosted MySQL URL instead of the individual DB fields:
-
-```text
-DATABASE_URL=mysql://user:password@host:3306/medsense
-DB_SSL=true
 ```
 
 Recommended public URLs:
@@ -53,29 +42,19 @@ Recommended public URLs:
 ## Deploy To Render
 
 1. Push this folder to GitHub.
-2. In Render, create a new Web Service from the GitHub repo.
-3. Use:
-   - Build Command: `npm install`
-   - Start Command: `npm start`
-   - Health Check Path: `/health`
-4. Add the production environment variables above.
-5. Add a custom domain in Render:
-
-   ```text
-   api.mymedsense.co
-   ```
-
-6. In Namecheap DNS, add the CNAME record Render gives you for `api`.
+2. Deploy from the repository root.
+3. The frontend calls the API on the same Vercel deployment under `/api`.
+4. Add the production environment variables above in Vercel.
 
 ## Database Checks
 
 Use these after deployment:
 
 ```text
-https://api.mymedsense.co/health
-https://api.mymedsense.co/health/db
+https://mymedsense.co/api/health
+https://mymedsense.co/api/health/db
 ```
 
-`/health/db` runs a simple MySQL query and returns `database: "connected"` when the backend can read from MySQL.
+`/api/health/db` pings MongoDB and returns `database: "connected"` when the backend can read from MongoDB.
 
-On a fresh database, the backend creates the required tables on startup. If `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set, it also creates or updates that admin account.
+On a fresh database, MongoDB creates the required collections as the app writes data. If `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set, the backend also creates or updates that admin account.

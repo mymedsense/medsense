@@ -10,8 +10,9 @@ import {
 } from "lucide-react";
 
 const API =
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD ? "https://api.mymedsense.co" : "http://localhost:5000");
+  import.meta.env.PROD
+    ? "/api"
+    : import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function hasDashboardDeepLink() {
   if (typeof window === "undefined") return false;
